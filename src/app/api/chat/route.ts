@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
 import { isAuthorizedRequest } from "@/lib/access";
+import { generateImageWithFallback } from "@/lib/image-generation";
 import { buildAssistantInstructions, GENERATE_IMAGE_TOOL, MEMORY_TOOL } from "@/lib/prompt";
 import {
   MEMORY_CATEGORIES,
@@ -93,29 +94,6 @@ function isGenerateImageCall(
     typeof record.arguments === "string" &&
     typeof record.call_id === "string"
   );
-}
-
-async function generateImage(client: OpenAI, prompt: string): Promise<GeneratedImage> {
-  const response = await client.images.generate({
-    model: process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-1.5",
-    prompt,
-    background: "auto",
-    output_format: "png",
-    quality: "high",
-    size: "auto",
-  });
-
-  const image = response.data?.[0];
-
-  if (!image?.b64_json) {
-    throw new Error("No image data returned.");
-  }
-
-  return {
-    dataUrl: `data:image/png;base64,${image.b64_json}`,
-    prompt,
-    revisedPrompt: image.revised_prompt ?? undefined,
-  };
 }
 
 function serializeMessages(messages: ChatRequestPayload["messages"]) {
@@ -353,7 +331,7 @@ export async function POST(request: Request) {
                     };
                   }
 
-                  generatedImage = await generateImage(client, prompt);
+                  generatedImage = await generateImageWithFallback(client, prompt);
 
                   return {
                     type: "function_call_output" as const,

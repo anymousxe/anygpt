@@ -2,25 +2,11 @@ import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
 import { isAuthorizedRequest } from "@/lib/access";
+import { generateImageWithFallback } from "@/lib/image-generation";
 import type { ImageRequestPayload } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-function dataUrlToUploadable(dataUrl: string, index: number) {
-  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-
-  if (!match) {
-    throw new Error("Invalid image attachment.");
-  }
-
-  const mimeType = match[1];
-  const base64 = match[2];
-  const extension = mimeType.split("/")[1] || "png";
-  const bytes = Buffer.from(base64, "base64");
-
-  return new File([bytes], `reference-${index + 1}.${extension}`, { type: mimeType });
-}
 
 export async function POST(request: Request) {
   try {
@@ -54,39 +40,13 @@ export async function POST(request: Request) {
     }
 
     const client = new OpenAI({ apiKey });
-    const response = attachments.length > 0
-      ? await client.images.edit({
-          model: process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-1.5",
-          image: attachments.map((attachment, index) =>
-            dataUrlToUploadable(attachment.dataUrl, index)
-          ),
-          prompt,
-          input_fidelity: "high",
-          background: "auto",
-          output_format: "png",
-          quality: "high",
-          size: "auto",
-        })
-      : await client.images.generate({
-          model: process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-1.5",
-          prompt,
-          background: "auto",
-          output_format: "png",
-          quality: "high",
-          size: "auto",
-        });
-
-    const image = response.data?.[0];
-
-    if (!image?.b64_json) {
-      throw new Error("No image data returned.");
-    }
+    const image = await generateImageWithFallback(client, prompt, attachments);
 
     return NextResponse.json({
       image: {
-        dataUrl: `data:image/png;base64,${image.b64_json}`,
-        prompt,
-        revisedPrompt: image.revised_prompt ?? undefined,
+        dataUrl: image.dataUrl,
+        prompt: image.prompt,
+        revisedPrompt: image.revisedPrompt,
       },
     });
   } catch (error) {
