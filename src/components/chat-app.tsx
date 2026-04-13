@@ -709,6 +709,15 @@ export function ChatApp() {
   }
 
   function handleSuggestion(prompt: string, imageMode: boolean) {
+    if (composer.trim() || queuedAttachments.length > 0) {
+      setNotice({
+        kind: "error",
+        text: "Clear your current draft before using a sample prompt.",
+      });
+      getActiveTextarea()?.focus();
+      return;
+    }
+
     setComposer(prompt);
 
     if (imageMode) {
