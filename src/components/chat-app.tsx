@@ -35,6 +35,7 @@ import {
   APP_NAME,
   BACKUP_FILE_PREFIX,
   STORAGE_KEY,
+  compressImageFile,
   compressImageToDataUrl,
   createInitialState,
   createThread,
@@ -121,24 +122,6 @@ function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-        return;
-      }
-
-      reject(new Error("Could not read image."));
-    };
-
-    reader.onerror = () => reject(new Error("Could not read image."));
-    reader.readAsDataURL(file);
-  });
-}
-
 export function ChatApp() {
   const [state, setState] = useState<PersistedState | null>(null);
   const [composer, setComposer] = useState("");
@@ -157,6 +140,7 @@ export function ChatApp() {
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const dialogInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const imageModeRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -257,6 +241,10 @@ export function ChatApp() {
     element.style.height = "0px";
     element.style.height = `${Math.min(element.scrollHeight, maxHeight)}px`;
   }, [composer]);
+
+  useEffect(() => {
+    imageModeRef.current = state?.settings.imageMode ?? false;
+  }, [state?.settings.imageMode]);
 
   useEffect(() => {
     if (!editorDialog) {
@@ -500,8 +488,7 @@ export function ChatApp() {
     try {
       const attachments = await Promise.all(
         imageFiles.map(async (file) => {
-          const rawDataUrl = await readFileAsDataUrl(file);
-          const compressedDataUrl = await compressImageToDataUrl(rawDataUrl);
+          const compressedDataUrl = await compressImageFile(file);
           return {
             id: makeId("attachment"),
             name: file.name || "Image",
@@ -676,6 +663,7 @@ export function ChatApp() {
     setComposer(prompt);
 
     if (imageMode) {
+      imageModeRef.current = true;
       updateSettings({ imageMode: true });
     }
 
@@ -699,7 +687,7 @@ export function ChatApp() {
     const createdAt = nowIso();
     const shouldGenerateImage =
       queuedAttachments.length === 0 &&
-      (state.settings.imageMode ||
+      (imageModeRef.current ||
         (state.settings.autoDetectImages && detectImageIntent(text)));
     const userMessage: ChatMessage = {
       id: makeId("message"),
@@ -793,6 +781,7 @@ export function ChatApp() {
           body: JSON.stringify({
             profileName: activeProfile.name,
             memories: activeProfile.memories,
+            customInstructions: state.settings.customInstructions,
             messages: nextMessages,
           } satisfies ChatRequestPayload),
         });
@@ -1106,6 +1095,21 @@ export function ChatApp() {
               </button>
             </div>
 
+            <div className="glass-control mt-3 rounded-[18px] p-3">
+              <div className="text-xs uppercase tracking-[0.18em] text-white/36">
+                Custom instructions
+              </div>
+              <textarea
+                value={state.settings.customInstructions}
+                onChange={(event) =>
+                  updateSettings({ customInstructions: event.target.value })
+                }
+                rows={4}
+                placeholder="Optional: set your own assistant rules or tone here."
+                className="mt-2 max-h-40 min-h-24 w-full resize-y bg-transparent text-sm leading-6 text-white placeholder:text-white/28 focus:outline-none"
+              />
+            </div>
+
             <input
               ref={restoreInputRef}
               type="file"
@@ -1179,10 +1183,14 @@ export function ChatApp() {
 
               <div className="shrink-0 px-2 pb-2 sm:px-3 sm:pb-3">
                 <div className="glass-panel-soft rounded-[24px] px-3 py-3 sm:px-4">
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <div className="mb-2 flex flex-wrap items-center gap-2 sm:mb-3">
                     <button
                       type="button"
-                      onClick={() => updateSettings({ imageMode: !state.settings.imageMode })}
+                      onClick={() => {
+                        const nextImageMode = !imageModeRef.current;
+                        imageModeRef.current = nextImageMode;
+                        updateSettings({ imageMode: nextImageMode });
+                      }}
                       className={`glass-control inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-white/74 ${
                         state.settings.imageMode ? "glass-control--active text-white" : ""
                       }`}
@@ -1238,7 +1246,7 @@ export function ChatApp() {
                   </div>
 
                   {queuedAttachments.length > 0 ? (
-                    <div className="mb-3 flex flex-wrap gap-2">
+                    <div className="mb-2 flex flex-wrap gap-2 sm:mb-3">
                       {queuedAttachments.map((attachment) => (
                         <div
                           key={attachment.id}
@@ -1272,17 +1280,17 @@ export function ChatApp() {
                       void sendMessage();
                     }}
                   >
-                    <div className="flex items-end gap-2">
+                    <div className="flex items-end gap-1.5 sm:gap-2">
                       <button
                         type="button"
                         onClick={() => uploadInputRef.current?.click()}
-                        className="glass-control inline-flex h-11 shrink-0 items-center gap-2 rounded-[16px] px-3 text-sm text-white/78"
+                        className="glass-control inline-flex h-10 shrink-0 items-center gap-2 rounded-[14px] px-2.5 text-sm text-white/78 sm:h-11 sm:rounded-[16px] sm:px-3"
                       >
                         <ImagePlus className="h-4 w-4" />
                         <span className="hidden sm:inline">Image</span>
                       </button>
 
-                      <div className="glass-control flex min-h-[56px] flex-1 items-end rounded-[20px] px-3 py-2">
+                      <div className="glass-control flex min-h-[48px] flex-1 items-end rounded-[18px] px-2.5 py-1.5 sm:min-h-[56px] sm:rounded-[20px] sm:px-3 sm:py-2">
                         <textarea
                           ref={textareaRef}
                           value={composer}
@@ -1310,14 +1318,14 @@ export function ChatApp() {
                                 ? "Ask about these images..."
                                 : `Message ${APP_NAME}...`
                           }
-                          className="min-h-[40px] max-h-[15vh] w-full resize-none bg-transparent text-[15px] leading-7 text-white placeholder:text-white/26 focus:outline-none"
+                          className="min-h-[34px] max-h-[15vh] w-full resize-none bg-transparent text-[14px] leading-6 text-white placeholder:text-white/26 focus:outline-none sm:min-h-[40px] sm:text-[15px] sm:leading-7"
                         />
                       </div>
 
                       <button
                         type="submit"
                         disabled={!canSend}
-                        className="inline-flex h-11 shrink-0 items-center gap-2 rounded-[16px] bg-white px-4 text-sm font-medium text-black transition hover:scale-[1.01] hover:shadow-[0_18px_60px_rgba(255,255,255,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[14px] bg-white px-3 text-sm font-medium text-black transition hover:scale-[1.01] hover:shadow-[0_18px_60px_rgba(255,255,255,0.16)] disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 sm:rounded-[16px] sm:px-4"
                       >
                         <span>{willGenerateImage ? "Create" : "Send"}</span>
                         <SendHorizontal className="h-4 w-4" />
@@ -1349,7 +1357,7 @@ export function ChatApp() {
                           ? "Vision chat"
                           : "Chat mode"}
                     </span>
-                    <p className="text-white/28">
+                    <p className="hidden text-white/28 sm:block">
                       Chats, memories, folders, and saved images stay local in this browser.
                     </p>
                   </div>

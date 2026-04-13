@@ -10,7 +10,7 @@ type UnlockPageProps = {
 export default async function UnlockPage({ searchParams }: UnlockPageProps) {
   const resolvedSearchParams = await searchParams;
   const hasError = resolvedSearchParams.error === "1";
-  const selectedProfile = resolvedSearchParams.profile;
+  const selectedProfile = resolvedSearchParams.profile === "aiden" ? "aiden" : "mom";
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center p-4">
@@ -47,30 +47,38 @@ export default async function UnlockPage({ searchParams }: UnlockPageProps) {
           <fieldset>
             <legend className="mb-2 text-sm text-white/58">Profile</legend>
             <div className="grid grid-cols-2 gap-3">
-              <label className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4 text-white transition hover:border-white/18 hover:bg-white/[0.06]">
+              <label className="block cursor-pointer">
                 <input
                   type="radio"
                   name="profile"
                   value="mom"
-                  defaultChecked={selectedProfile === "mom"}
-                  className="sr-only"
+                  defaultChecked={selectedProfile !== "aiden"}
+                  className="peer sr-only"
                   required
                 />
-                <div className="text-sm font-medium">Mom</div>
-                <div className="mt-1 text-xs text-white/36">Private family chat space</div>
+                <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4 text-white transition hover:border-white/18 hover:bg-white/[0.06] peer-checked:border-white/30 peer-checked:bg-white peer-checked:text-black peer-checked:shadow-[0_18px_60px_rgba(255,255,255,0.14)]">
+                  <div className="text-sm font-medium">Mom</div>
+                  <div className="mt-1 text-xs opacity-60">
+                    Private family chat space
+                  </div>
+                </div>
               </label>
 
-              <label className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4 text-white transition hover:border-white/18 hover:bg-white/[0.06]">
+              <label className="block cursor-pointer">
                 <input
                   type="radio"
                   name="profile"
                   value="aiden"
-                  defaultChecked={selectedProfile !== "mom"}
-                  className="sr-only"
+                  defaultChecked={selectedProfile === "aiden"}
+                  className="peer sr-only"
                   required
                 />
-                <div className="text-sm font-medium">Aiden</div>
-                <div className="mt-1 text-xs text-white/36">Your own separate space</div>
+                <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4 text-white transition hover:border-white/18 hover:bg-white/[0.06] peer-checked:border-white/30 peer-checked:bg-white peer-checked:text-black peer-checked:shadow-[0_18px_60px_rgba(255,255,255,0.14)]">
+                  <div className="text-sm font-medium">Aiden</div>
+                  <div className="mt-1 text-xs opacity-60">
+                    Your own separate space
+                  </div>
+                </div>
               </label>
             </div>
           </fieldset>

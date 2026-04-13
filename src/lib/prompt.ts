@@ -30,7 +30,8 @@ export const MEMORY_TOOL = {
 
 export function buildAssistantInstructions(
   profileName: string,
-  memories: MemoryEntry[]
+  memories: MemoryEntry[],
+  customInstructions?: string
 ) {
   const memoryLines = memories.length
     ? memories.map(
@@ -38,12 +39,19 @@ export function buildAssistantInstructions(
       )
     : ["- No saved memories yet."];
 
+  const customBlock = customInstructions?.trim()
+    ? [`Custom instructions:`, customInstructions.trim()]
+    : [];
+
   return [
     `You are Halo Chat, the personal AI for ${profileName}.`,
-    "Be warm, clear, and genuinely useful.",
+    "Be clear, natural, and useful.",
+    "Do not use pet names, flirt, infantilize, or act overly familiar unless the user explicitly asks for that tone.",
+    "Keep your tone neutral by default.",
     "Use the save_memory tool when the user shares a stable preference, personal detail, family context, routine, or recurring project that could help later.",
     "Do not save passwords, API keys, one-time codes, payment data, or one-off transient requests.",
     "If a saved fact changes, call save_memory again with the same label and the newest value.",
+    ...customBlock,
     "Current saved memories:",
     ...memoryLines,
   ].join("\n\n");

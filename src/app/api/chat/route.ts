@@ -192,6 +192,8 @@ export async function POST(request: Request) {
         : "User";
     const messages = Array.isArray(body.messages) ? body.messages : [];
     const memories = normalizeMemories(body.memories);
+    const customInstructions =
+      typeof body.customInstructions === "string" ? body.customInstructions.trim() : "";
 
     if (messages.length === 0) {
       return NextResponse.json({ error: "No messages provided." }, { status: 400 });
@@ -216,7 +218,11 @@ export async function POST(request: Request) {
           for (let index = 0; index < 4; index += 1) {
             const responseStream = await client.responses.stream({
               model,
-              instructions: buildAssistantInstructions(profileName, memories),
+              instructions: buildAssistantInstructions(
+                profileName,
+                memories,
+                customInstructions
+              ),
               input,
               max_output_tokens: 1200,
               parallel_tool_calls: true,

@@ -16,8 +16,8 @@ export const APP_NAME = "Halo Chat";
 export const APP_VERSION = 1;
 export const STORAGE_KEY = "halo-chat-state:v1";
 export const BACKUP_FILE_PREFIX = "halo-chat-backup";
-export const MAX_IMAGE_DIM = 1024;
-export const MAX_IMAGE_QUALITY = 0.65;
+export const MAX_IMAGE_DIM = 768;
+export const MAX_IMAGE_QUALITY = 0.58;
 export const PROFILE_PRESETS = [
   { slug: "mom", name: "Mom" },
   { slug: "aiden", name: "Aiden" },
@@ -265,6 +265,64 @@ export function compressImageToDataUrl(dataUrl: string): Promise<string> {
   });
 }
 
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("Could not read image."));
+    };
+
+    reader.onerror = () => reject(new Error("Could not read image."));
+    reader.readAsDataURL(file);
+  });
+}
+
+export function compressImageFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > MAX_IMAGE_DIM || height > MAX_IMAGE_DIM) {
+        const scale = MAX_IMAGE_DIM / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      URL.revokeObjectURL(objectUrl);
+
+      if (!ctx) {
+        void readFileAsDataUrl(file).then(resolve, reject);
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", MAX_IMAGE_QUALITY));
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      void readFileAsDataUrl(file).then(
+        (dataUrl) => compressImageToDataUrl(dataUrl).then(resolve, () => resolve(dataUrl)),
+        reject
+      );
+    };
+
+    img.src = objectUrl;
+  });
+}
+
 export function makeId(prefix: string) {
   return `${prefix}_${crypto.randomUUID()}`;
 }
@@ -319,6 +377,7 @@ export function createInitialState(): PersistedState {
     settings: {
       imageMode: false,
       autoDetectImages: true,
+      customInstructions: "",
     },
   };
 }
@@ -369,10 +428,15 @@ export function normalizePersistedState(value: unknown): PersistedState {
             typeof value.settings.autoDetectImages === "boolean"
               ? value.settings.autoDetectImages
               : true,
+          customInstructions:
+            typeof value.settings.customInstructions === "string"
+              ? value.settings.customInstructions
+              : "",
         }
       : {
           imageMode: false,
           autoDetectImages: true,
+          customInstructions: "",
         },
   };
 }

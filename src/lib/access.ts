@@ -18,12 +18,14 @@ export function getSiteAccessKey() {
 }
 
 export function isValidSiteAccessKey(candidate: string, expected = getSiteAccessKey()) {
+  const normalizedCandidate = candidate.trim().toLowerCase();
+  const normalizedExpected = expected.trim().toLowerCase();
 
-  if (!expected) {
+  if (!normalizedExpected) {
     return false;
   }
 
-  return safeCompare(candidate.trim(), expected);
+  return safeCompare(normalizedCandidate, normalizedExpected);
 }
 
 export function createAccessCookieValue(secret = getSiteAccessKey()) {

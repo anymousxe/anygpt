@@ -72,6 +72,7 @@ export type UserProfile = {
 export type AppSettings = {
   imageMode: boolean;
   autoDetectImages: boolean;
+  customInstructions: string;
 };
 
 export type PersistedState = {
@@ -85,6 +86,7 @@ export type ChatRequestPayload = {
   profileName: string;
   messages: Array<Pick<ChatMessage, "role" | "text" | "attachments">>;
   memories: MemoryEntry[];
+  customInstructions?: string;
 };
 
 export type ChatResponsePayload = {
