@@ -129,6 +129,7 @@ export function ChatApp() {
   const [queuedAttachments, setQueuedAttachments] = useState<UploadAttachment[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mobileMemoryOpen, setMobileMemoryOpen] = useState(false);
+  const [imageMenuOpen, setImageMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -136,12 +137,22 @@ export function ChatApp() {
   const [isMutating, startTransition] = useTransition();
 
   const deferredSearch = useDeferredValue(search);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const desktopTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const mobileTextareaRef = useRef<HTMLTextAreaElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const dialogInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const imageModeRef = useRef(false);
+  const imageMenuRef = useRef<HTMLDivElement>(null);
+
+  function getActiveTextarea() {
+    if (typeof window !== "undefined" && window.innerWidth < 640) {
+      return mobileTextareaRef.current;
+    }
+
+    return desktopTextareaRef.current ?? mobileTextareaRef.current;
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -226,20 +237,36 @@ export function ChatApp() {
   }, [notice]);
 
   useEffect(() => {
-    const element = textareaRef.current;
-
-    if (!element) {
-      return;
-    }
-
     const maxHeight = Math.max(120, Math.round(window.innerHeight * 0.15));
-    element.style.height = "0px";
-    element.style.height = `${Math.min(element.scrollHeight, maxHeight)}px`;
+
+    for (const element of [desktopTextareaRef.current, mobileTextareaRef.current]) {
+      if (!element) {
+        continue;
+      }
+
+      element.style.height = "0px";
+      element.style.height = `${Math.min(element.scrollHeight, maxHeight)}px`;
+    }
   }, [composer]);
 
   useEffect(() => {
     imageModeRef.current = state?.settings.imageMode ?? false;
   }, [state?.settings.imageMode]);
+
+  useEffect(() => {
+    if (!imageMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!imageMenuRef.current?.contains(event.target as Node)) {
+        setImageMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [imageMenuOpen]);
 
   useEffect(() => {
     if (!editorDialog) {
@@ -494,7 +521,8 @@ export function ChatApp() {
       );
 
       setQueuedAttachments((current) => [...current, ...attachments]);
-      textareaRef.current?.focus();
+      setImageMenuOpen(false);
+      getActiveTextarea()?.focus();
     } catch {
       setNotice({ kind: "error", text: "Couldn't read one of those images." });
     }
@@ -551,7 +579,7 @@ export function ChatApp() {
     }));
 
     setSidebarOpen(false);
-    textareaRef.current?.focus();
+    getActiveTextarea()?.focus();
   }
 
   function handleDeleteChat(chatId: string) {
@@ -662,7 +690,7 @@ export function ChatApp() {
       updateSettings({ imageMode: true });
     }
 
-    textareaRef.current?.focus();
+    getActiveTextarea()?.focus();
   }
 
   async function sendMessage() {
@@ -704,6 +732,7 @@ export function ChatApp() {
     const nextTitle =
       activeChat.title === "New chat" ? createTitleFromText(text) : activeChat.title;
 
+    setImageMenuOpen(false);
     setComposer("");
     setQueuedAttachments([]);
     setIsSending(true);
@@ -1178,7 +1207,7 @@ export function ChatApp() {
 
               <div className="shrink-0 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] sm:px-3 sm:pb-3">
                 <div className="glass-panel-soft rounded-[24px] px-3 py-3 sm:px-4">
-                  <div className="mb-2 flex flex-wrap items-center gap-2 sm:mb-3">
+                  <div className="mb-2 hidden flex-wrap items-center gap-2 sm:mb-3 sm:flex">
                     <button
                       type="button"
                       onClick={() => {
@@ -1241,7 +1270,7 @@ export function ChatApp() {
                   </div>
 
                   {queuedAttachments.length > 0 ? (
-                    <div className="mb-2 flex flex-wrap gap-2 sm:mb-3">
+                    <div className="chat-scroll mb-2 flex gap-2 overflow-x-auto sm:mb-3 sm:flex-wrap sm:overflow-visible">
                       {queuedAttachments.map((attachment) => (
                         <div
                           key={attachment.id}
@@ -1275,7 +1304,7 @@ export function ChatApp() {
                       void sendMessage();
                     }}
                   >
-                    <div className="flex items-end gap-1.5 sm:gap-2">
+                    <div className="hidden items-end gap-1.5 sm:flex sm:gap-2">
                       <button
                         type="button"
                         onClick={() => uploadInputRef.current?.click()}
@@ -1287,7 +1316,7 @@ export function ChatApp() {
 
                       <div className="glass-control flex min-h-[48px] flex-1 items-end rounded-[18px] px-2.5 py-1.5 sm:min-h-[56px] sm:rounded-[20px] sm:px-3 sm:py-2">
                         <textarea
-                          ref={textareaRef}
+                          ref={desktopTextareaRef}
                           value={composer}
                           onChange={(event) => setComposer(event.target.value)}
                           onKeyDown={(event) => {
@@ -1326,6 +1355,89 @@ export function ChatApp() {
                         <SendHorizontal className="h-4 w-4" />
                       </button>
                     </div>
+
+                    <div className="flex items-end gap-2 sm:hidden">
+                      <div ref={imageMenuRef} className="relative shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setImageMenuOpen((current) => !current)}
+                          className={`glass-control inline-flex h-10 items-center gap-2 rounded-[14px] px-3 text-sm text-white/78 ${
+                            imageMenuOpen ? "glass-control--active text-white" : ""
+                          }`}
+                          aria-label="Open image options"
+                        >
+                          <ImagePlus className="h-4 w-4" />
+                          <ChevronDown className={`h-3.5 w-3.5 transition ${imageMenuOpen ? "rotate-180" : ""}`} />
+                        </button>
+
+                        {imageMenuOpen ? (
+                          <div className="glass-panel absolute bottom-full left-0 z-20 mb-2 flex min-w-[180px] flex-col gap-1 rounded-[16px] p-1.5">
+                            <button
+                              type="button"
+                              onClick={() => uploadInputRef.current?.click()}
+                              className="glass-control flex items-center gap-2 rounded-[12px] px-3 py-2 text-left text-sm text-white/78"
+                            >
+                              <Upload className="h-4 w-4" />
+                              Add image
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextImageMode = !imageModeRef.current;
+                                imageModeRef.current = nextImageMode;
+                                updateSettings({ imageMode: nextImageMode });
+                                setImageMenuOpen(false);
+                              }}
+                              className={`glass-control flex items-center gap-2 rounded-[12px] px-3 py-2 text-left text-sm ${
+                                state.settings.imageMode ? "glass-control--active text-white" : "text-white/78"
+                              }`}
+                            >
+                              <Sparkles className="h-4 w-4" />
+                              {state.settings.imageMode ? "Image generation on" : "Image generation off"}
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="glass-control relative flex min-h-[46px] flex-1 items-end rounded-[18px] px-2.5 py-1.5">
+                        <textarea
+                          ref={mobileTextareaRef}
+                          value={composer}
+                          onChange={(event) => setComposer(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" && !event.shiftKey) {
+                              event.preventDefault();
+                              void sendMessage();
+                            }
+                          }}
+                          onPaste={(event) => {
+                            const imageFiles = Array.from(event.clipboardData.files).filter(
+                              (file) => file.type.startsWith("image/")
+                            );
+
+                            if (imageFiles.length > 0) {
+                              void queueFiles(imageFiles);
+                            }
+                          }}
+                          rows={1}
+                          placeholder={
+                            willGenerateImage
+                              ? "Describe the image you want..."
+                              : queuedAttachments.length > 0
+                                ? "Ask about these images..."
+                                : `Message ${APP_NAME}...`
+                          }
+                          className="min-h-[32px] max-h-[15vh] w-full resize-none bg-transparent pr-10 text-[14px] leading-6 text-white placeholder:text-white/26 focus:outline-none"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!canSend}
+                          className="absolute right-3 bottom-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-black transition disabled:opacity-50"
+                        >
+                          <SendHorizontal className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
                   </form>
 
                   <input
@@ -1344,7 +1456,7 @@ export function ChatApp() {
                     }}
                   />
 
-                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="mt-2 hidden flex-wrap items-center justify-between gap-2 text-xs sm:flex">
                     <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 text-white/46">
                       {willGenerateImage
                         ? "GPT Image 1.5"
