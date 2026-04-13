@@ -1239,7 +1239,7 @@ export function ChatApp() {
                       Quick prompts, clean chat flow, and a tighter workspace.
                     </p>
 
-                    <div className="mt-6 grid gap-2.5 md:grid-cols-3">
+                    <div className="mt-6 grid gap-2.5 sm:grid-cols-2 md:grid-cols-3">
                       {SUGGESTIONS.map((suggestion) => (
                         <button
                           key={suggestion.title}
@@ -1261,7 +1261,7 @@ export function ChatApp() {
                   </div>
                 </div>
               ) : (
-                <div className="chat-scroll flex-1 overflow-y-auto px-2.5 pb-2.5 pt-14 sm:px-5 sm:pb-4 sm:pt-5">
+                <div className="chat-scroll flex-1 overflow-y-auto px-2.5 pb-2 pt-14 sm:px-5 sm:pb-4 sm:pt-5">
                   <div className="mx-auto flex w-full max-w-3xl flex-col gap-2.5">
                     {activeChat.messages.map((message) => (
                       <MessageCard
@@ -1279,7 +1279,7 @@ export function ChatApp() {
               )}
 
               <div className="shrink-0 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] sm:px-3 sm:pb-3">
-                <div className="glass-panel-soft rounded-[24px] px-3 py-3 sm:px-4">
+                <div className="glass-panel-soft rounded-[26px] px-2.5 py-2.5 sm:rounded-[24px] sm:px-4 sm:py-3">
                   <div className="mb-2 hidden flex-wrap items-center gap-2 sm:mb-3 sm:flex">
                     <button
                       type="button"
@@ -1343,16 +1343,16 @@ export function ChatApp() {
                   </div>
 
                   {queuedAttachments.length > 0 ? (
-                    <div className="chat-scroll mb-2 flex gap-2 overflow-x-auto sm:mb-3 sm:flex-wrap sm:overflow-visible">
+                    <div className="chat-scroll mb-2 flex gap-2 overflow-x-auto pb-1 sm:mb-3 sm:flex-wrap sm:overflow-visible sm:pb-0">
                       {queuedAttachments.map((attachment) => (
                         <div
                           key={attachment.id}
-                          className="relative overflow-hidden rounded-[18px] border border-white/10 bg-white/[0.04] p-1"
+                          className="relative shrink-0 overflow-hidden rounded-[18px] border border-white/10 bg-white/[0.04] p-1"
                         >
                           <img
                             src={attachment.dataUrl}
                             alt={attachment.name}
-                            className="h-16 w-16 rounded-[14px] object-cover"
+                            className="h-14 w-14 rounded-[14px] object-cover sm:h-16 sm:w-16"
                           />
                           <button
                             type="button"
@@ -1430,11 +1430,11 @@ export function ChatApp() {
                     </div>
 
                     <div className="flex items-end gap-2 sm:hidden">
-                      <div ref={imageMenuRef} className="relative shrink-0">
+                      <div ref={imageMenuRef} className="relative shrink-0 self-end">
                         <button
                           type="button"
                           onClick={() => setImageMenuOpen((current) => !current)}
-                          className={`glass-control inline-flex h-10 items-center gap-2 rounded-[14px] px-3 text-sm text-white/78 ${
+                          className={`glass-control inline-flex h-11 w-11 items-center justify-center rounded-[16px] text-sm text-white/78 shadow-[0_12px_32px_rgba(0,0,0,0.18)] ${
                             imageMenuOpen ? "glass-control--active text-white" : ""
                           }`}
                           aria-label="Open image options"
@@ -1444,7 +1444,7 @@ export function ChatApp() {
                         </button>
 
                         {imageMenuOpen ? (
-                          <div className="glass-panel absolute bottom-full left-0 z-20 mb-2 flex min-w-[180px] flex-col gap-1 rounded-[16px] p-1.5">
+                          <div className="glass-panel absolute bottom-full left-0 z-20 mb-2 flex min-w-[190px] flex-col gap-1 rounded-[18px] p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.28)]">
                             <button
                               type="button"
                               onClick={() => uploadInputRef.current?.click()}
@@ -1472,7 +1472,7 @@ export function ChatApp() {
                         ) : null}
                       </div>
 
-                      <div className="glass-control relative flex min-h-[46px] flex-1 items-end rounded-[18px] px-2.5 py-1.5">
+                      <div className="glass-control relative flex min-h-[58px] flex-1 items-end rounded-[24px] border-white/10 bg-white/[0.045] px-3 py-2 shadow-[0_18px_50px_rgba(0,0,0,0.2)]">
                         <textarea
                           ref={mobileTextareaRef}
                           value={composer}
@@ -1500,12 +1500,12 @@ export function ChatApp() {
                                 ? "Ask about these images..."
                                 : `Message ${APP_NAME}...`
                           }
-                          className="min-h-[32px] max-h-[15vh] w-full resize-none bg-transparent pr-10 text-[14px] leading-6 text-white placeholder:text-white/26 focus:outline-none"
+                          className="min-h-[40px] max-h-[24vh] w-full resize-none bg-transparent pr-12 pt-0.5 text-[16px] leading-[1.45] text-white placeholder:text-white/30 focus:outline-none"
                         />
                         <button
                           type="submit"
                           disabled={!canSend}
-                          className="absolute right-3 bottom-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-black transition disabled:opacity-50"
+                          className="absolute right-2.5 bottom-2.5 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-black shadow-[0_10px_24px_rgba(255,255,255,0.14)] transition disabled:opacity-50"
                         >
                           <SendHorizontal className="h-4 w-4" />
                         </button>
