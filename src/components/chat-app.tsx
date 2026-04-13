@@ -101,6 +101,8 @@ type SidebarAction = {
   onClick: () => void;
 };
 
+type ComposerMode = "chat" | "image";
+
 function formatRelativeTime(timestamp: string) {
   const delta = Date.now() - new Date(timestamp).getTime();
 
@@ -135,6 +137,7 @@ export function ChatApp() {
   const [state, setState] = useState<PersistedState | null>(null);
   const [composer, setComposer] = useState("");
   const [queuedAttachments, setQueuedAttachments] = useState<UploadAttachment[]>([]);
+  const [composerMode, setComposerMode] = useState<ComposerMode>("chat");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mobileMemoryOpen, setMobileMemoryOpen] = useState(false);
   const [imageMenuOpen, setImageMenuOpen] = useState(false);
@@ -154,7 +157,7 @@ export function ChatApp() {
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const dialogInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
-  const imageModeRef = useRef(false);
+  const composerModeRef = useRef<ComposerMode>("chat");
   const imageMenuRef = useRef<HTMLDivElement>(null);
 
   function getActiveTextarea() {
@@ -261,7 +264,9 @@ export function ChatApp() {
   }, [composer]);
 
   useEffect(() => {
-    imageModeRef.current = state?.settings.imageMode ?? false;
+    const nextMode: ComposerMode = state?.settings.imageMode ? "image" : "chat";
+    composerModeRef.current = nextMode;
+    setComposerMode(nextMode);
   }, [state?.settings.imageMode]);
 
   useEffect(() => {
@@ -376,7 +381,7 @@ export function ChatApp() {
   const willGenerateImage = Boolean(
     state &&
       queuedAttachments.length === 0 &&
-      (state.settings.imageMode || autoImageDetected)
+      (composerMode === "image" || autoImageDetected)
   );
 
   const canSend =
@@ -721,7 +726,8 @@ export function ChatApp() {
     setComposer(prompt);
 
     if (imageMode) {
-      imageModeRef.current = true;
+      composerModeRef.current = "image";
+      setComposerMode("image");
       updateSettings({ imageMode: true });
     }
 
@@ -743,9 +749,10 @@ export function ChatApp() {
     const profileId = activeProfile.id;
     const chatId = activeChat.id;
     const createdAt = nowIso();
+    const explicitImageMode = composerModeRef.current === "image";
     const shouldGenerateImage =
       queuedAttachments.length === 0 &&
-      (imageModeRef.current ||
+      (explicitImageMode ||
         (state.settings.autoDetectImages && detectImageIntent(text)));
     const userMessage: ChatMessage = {
       id: makeId("message"),
@@ -1281,17 +1288,19 @@ export function ChatApp() {
               <div className="shrink-0 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] sm:px-3 sm:pb-3">
                 <div className="glass-panel-soft rounded-[26px] px-2.5 py-2.5 sm:rounded-[24px] sm:px-4 sm:py-3">
                   <div className="mb-2 hidden flex-wrap items-center gap-2 sm:mb-3 sm:flex">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextImageMode = !imageModeRef.current;
-                        imageModeRef.current = nextImageMode;
-                        updateSettings({ imageMode: nextImageMode });
-                      }}
-                      className={`glass-control inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-white/74 ${
-                        state.settings.imageMode ? "glass-control--active text-white" : ""
-                      }`}
-                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextMode: ComposerMode =
+                            composerModeRef.current === "image" ? "chat" : "image";
+                          composerModeRef.current = nextMode;
+                          setComposerMode(nextMode);
+                          updateSettings({ imageMode: nextMode === "image" });
+                        }}
+                        className={`glass-control inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-white/74 ${
+                          composerMode === "image" ? "glass-control--active text-white" : ""
+                        }`}
+                      >
                       <Sparkles className="h-4 w-4" />
                       Image mode
                     </button>
@@ -1456,17 +1465,19 @@ export function ChatApp() {
                             <button
                               type="button"
                               onClick={() => {
-                                const nextImageMode = !imageModeRef.current;
-                                imageModeRef.current = nextImageMode;
-                                updateSettings({ imageMode: nextImageMode });
+                                const nextMode: ComposerMode =
+                                  composerModeRef.current === "image" ? "chat" : "image";
+                                composerModeRef.current = nextMode;
+                                setComposerMode(nextMode);
+                                updateSettings({ imageMode: nextMode === "image" });
                                 setImageMenuOpen(false);
                               }}
                               className={`glass-control flex items-center gap-2 rounded-[12px] px-3 py-2 text-left text-sm ${
-                                state.settings.imageMode ? "glass-control--active text-white" : "text-white/78"
+                                composerMode === "image" ? "glass-control--active text-white" : "text-white/78"
                               }`}
                             >
                               <Sparkles className="h-4 w-4" />
-                              {state.settings.imageMode ? "Image generation on" : "Image generation off"}
+                              {composerMode === "image" ? "Image generation on" : "Image generation off"}
                             </button>
                           </div>
                         ) : null}
@@ -1846,6 +1857,47 @@ function renderMarkdownBlocks(text: string): ReactNode[] {
         >
           <code>{codeLines.join("\n")}</code>
         </pre>
+      );
+      continue;
+    }
+
+    const headingMatch = line.match(/^(#{1,3})\s+(.+)$/);
+
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const content = headingMatch[2].trim();
+      const className =
+        level === 1
+          ? "text-[1.5rem] font-semibold leading-tight tracking-tight text-white"
+          : level === 2
+            ? "text-[1.2rem] font-semibold leading-tight text-white/96"
+            : "text-[1rem] font-semibold leading-snug text-white/92";
+
+      blocks.push(
+        <div key={`h-${index}`} className={className}>
+          {renderInlineMarkdown(content)}
+        </div>
+      );
+      index += 1;
+      continue;
+    }
+
+    if (/^(\d+)\.\s+/.test(line)) {
+      const items: string[] = [];
+
+      while (index < lines.length && /^(\d+)\.\s+/.test(lines[index])) {
+        items.push(lines[index].replace(/^(\d+)\.\s+/, ""));
+        index += 1;
+      }
+
+      blocks.push(
+        <ol key={`olist-${index}`} className="space-y-2 pl-5">
+          {items.map((item, itemIndex) => (
+            <li key={`${index}-${itemIndex}`} className="list-decimal leading-7">
+              {renderInlineMarkdown(item)}
+            </li>
+          ))}
+        </ol>
       );
       continue;
     }
