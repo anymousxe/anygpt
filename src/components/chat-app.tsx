@@ -396,7 +396,15 @@ export function ChatApp() {
   function updateState(
     updater: (current: PersistedState) => PersistedState
   ) {
-    setState((current) => (current ? updater(current) : current));
+    setState((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const next = updater(current);
+      void savePersistedStateToBrowser(next);
+      return next;
+    });
   }
 
   function updateActiveProfile(updater: (profile: UserProfile) => UserProfile) {
@@ -433,7 +441,7 @@ export function ChatApp() {
           return current;
         }
 
-        return {
+        const next = {
           ...current,
           profiles: current.profiles.map((profile) => {
             if (profile.id !== profileId) {
@@ -461,6 +469,9 @@ export function ChatApp() {
             };
           }),
         };
+
+        void savePersistedStateToBrowser(next);
+        return next;
       });
     });
   }
@@ -481,7 +492,7 @@ export function ChatApp() {
           return current;
         }
 
-        return {
+        const next = {
           ...current,
           profiles: current.profiles.map((profile) => {
             if (profile.id !== profileId) {
@@ -511,6 +522,9 @@ export function ChatApp() {
             };
           }),
         };
+
+        void savePersistedStateToBrowser(next);
+        return next;
       });
     });
   }
