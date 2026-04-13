@@ -13,6 +13,7 @@ import {
   Plus,
   Search,
   SendHorizontal,
+  SlidersHorizontal,
   Sparkles,
   Trash2,
   Upload,
@@ -93,6 +94,13 @@ type EditorDialog = {
   value: string;
 };
 
+type SidebarAction = {
+  key: string;
+  label: string;
+  icon: ReactNode;
+  onClick: () => void;
+};
+
 function formatRelativeTime(timestamp: string) {
   const delta = Date.now() - new Date(timestamp).getTime();
 
@@ -130,6 +138,9 @@ export function ChatApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mobileMemoryOpen, setMobileMemoryOpen] = useState(false);
   const [imageMenuOpen, setImageMenuOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [draggedChatId, setDraggedChatId] = useState<string | null>(null);
+  const [dropFolderId, setDropFolderId] = useState<string | null | undefined>(undefined);
   const [search, setSearch] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -609,6 +620,21 @@ export function ChatApp() {
     });
   }
 
+  function moveChatToFolder(chatId: string, folderId: string | null) {
+    updateActiveProfile((profile) => ({
+      ...profile,
+      chats: profile.chats.map((chat) =>
+        chat.id === chatId
+          ? {
+              ...chat,
+              folderId,
+              updatedAt: nowIso(),
+            }
+          : chat
+      ),
+    }));
+  }
+
   function handleExportBackup() {
     if (!state) {
       return;
@@ -936,8 +962,39 @@ export function ChatApp() {
       return null;
     }
 
+    const isDropTarget = dropFolderId === folderId;
+
     return (
-      <section key={label} className="space-y-2">
+      <section
+        key={label}
+        className={`space-y-2 rounded-[20px] transition ${
+          isDropTarget ? "bg-white/[0.04] p-2" : ""
+        }`}
+        onDragOver={(event) => {
+          if (!draggedChatId) {
+            return;
+          }
+
+          event.preventDefault();
+          setDropFolderId(folderId);
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setDropFolderId(undefined);
+          }
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+
+          const chatId = draggedChatId || event.dataTransfer.getData("text/chat-id");
+          if (chatId) {
+            moveChatToFolder(chatId, folderId);
+          }
+
+          setDraggedChatId(null);
+          setDropFolderId(undefined);
+        }}
+      >
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-white/35">
             <FolderClosed className="h-3.5 w-3.5" />
@@ -963,7 +1020,20 @@ export function ChatApp() {
             const preview = chat.messages.at(-1)?.text || "Start something new";
 
             return (
-              <div key={chat.id} className="group relative">
+              <div
+                key={chat.id}
+                className="group relative"
+                draggable
+                onDragStart={(event) => {
+                  setDraggedChatId(chat.id);
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("text/chat-id", chat.id);
+                }}
+                onDragEnd={() => {
+                  setDraggedChatId(null);
+                  setDropFolderId(undefined);
+                }}
+              >
                 <button
                   type="button"
                   onClick={() => {
@@ -1012,6 +1082,39 @@ export function ChatApp() {
     return <LoadingShell />;
   }
 
+  const sidebarActions: SidebarAction[] = [
+    {
+      key: "new-chat",
+      label: "New chat",
+      icon: <MessageSquarePlus className="h-4 w-4" />,
+      onClick: () => handleCreateChat(),
+    },
+    {
+      key: "new-folder",
+      label: "New folder",
+      icon: <FolderPlus className="h-4 w-4" />,
+      onClick: () => setEditorDialog({ value: "" }),
+    },
+    {
+      key: "memories",
+      label: "Memories",
+      icon: <Brain className="h-4 w-4" />,
+      onClick: () => {
+        setSidebarOpen(false);
+        setMobileMemoryOpen(true);
+      },
+    },
+    {
+      key: "settings",
+      label: "Settings",
+      icon: <SlidersHorizontal className="h-4 w-4" />,
+      onClick: () => {
+        setSidebarOpen(false);
+        setSettingsOpen(true);
+      },
+    },
+  ];
+
   return (
     <div className="relative h-[100dvh] overflow-hidden p-0 sm:p-3">
       <div className="flex h-full w-full items-stretch gap-0 sm:gap-3">
@@ -1029,8 +1132,8 @@ export function ChatApp() {
             sidebarOpen ? "translate-x-0" : "-translate-x-[110%]"
           }`}
         >
-          <div className="glass-panel flex h-full flex-col overflow-hidden rounded-none p-2.5 sm:rounded-[28px]">
-            <div className="rounded-[24px] border border-white/8 bg-white/[0.025] p-4">
+          <div className="glass-panel flex h-full flex-col overflow-hidden rounded-none p-2 sm:p-2.5 sm:rounded-[28px]">
+            <div className="rounded-[22px] border border-white/8 bg-white/[0.025] p-3 sm:rounded-[24px] sm:p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="glass-control flex h-10 w-10 items-center justify-center rounded-[16px]">
@@ -1055,7 +1158,7 @@ export function ChatApp() {
                 </button>
               </div>
 
-              <div className="mt-4 rounded-[20px] border border-white/8 bg-white/[0.03] px-4 py-3">
+              <div className="mt-3 rounded-[18px] border border-white/8 bg-white/[0.03] px-3 py-2.5 sm:mt-4 sm:rounded-[20px] sm:px-4 sm:py-3">
                 <div className="text-xs uppercase tracking-[0.22em] text-white/34">
                   Active space
                 </div>
@@ -1064,26 +1167,21 @@ export function ChatApp() {
               </div>
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleCreateChat()}
-                className="glass-control inline-flex items-center justify-center gap-2 rounded-[18px] px-4 py-3 text-sm font-medium text-white"
-              >
-                <MessageSquarePlus className="h-4 w-4" />
-                New chat
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditorDialog({ value: "" })}
-                className="glass-control inline-flex items-center justify-center gap-2 rounded-[18px] px-4 py-3 text-sm font-medium text-white"
-              >
-                <FolderPlus className="h-4 w-4" />
-                New folder
-              </button>
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:mt-3">
+              {sidebarActions.map((action) => (
+                <button
+                  key={action.key}
+                  type="button"
+                  onClick={action.onClick}
+                  className="glass-control inline-flex items-center justify-center gap-2 rounded-[16px] px-3 py-2.5 text-sm font-medium text-white sm:rounded-[18px] sm:py-3"
+                >
+                  {action.icon}
+                  {action.label}
+                </button>
+              ))}
             </div>
 
-            <label className="glass-control mt-3 flex items-center gap-3 rounded-[18px] px-4 py-3 text-white/45 focus-within:border-white/18 focus-within:text-white/70">
+            <label className="glass-control mt-2 flex items-center gap-3 rounded-[16px] px-3 py-2.5 text-white/45 focus-within:border-white/18 focus-within:text-white/70 sm:mt-3 sm:rounded-[18px] sm:px-4 sm:py-3">
               <Search className="h-4 w-4" />
               <input
                 value={search}
@@ -1093,45 +1191,11 @@ export function ChatApp() {
               />
             </label>
 
-            <div className="chat-scroll mt-4 flex-1 space-y-4 overflow-y-auto pr-1">
+            <div className="chat-scroll mt-2 flex-1 space-y-3 overflow-y-auto pr-1 sm:mt-3">
               {groupedChats.folderGroups.map((group) =>
                 renderChatGroup(group.folder.name, group.folder.id, group.chats)
               )}
               {renderChatGroup("Unfiled", null, groupedChats.unfiled)}
-            </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={handleExportBackup}
-                className="glass-control inline-flex items-center justify-center gap-2 rounded-[18px] px-3 py-3 text-sm text-white/72"
-              >
-                <Download className="h-4 w-4" />
-                Backup
-              </button>
-              <button
-                type="button"
-                onClick={() => restoreInputRef.current?.click()}
-                className="glass-control inline-flex items-center justify-center gap-2 rounded-[18px] px-3 py-3 text-sm text-white/72"
-              >
-                <Upload className="h-4 w-4" />
-                Restore
-              </button>
-            </div>
-
-            <div className="glass-control mt-3 rounded-[18px] p-3">
-              <div className="text-xs uppercase tracking-[0.18em] text-white/36">
-                Custom instructions
-              </div>
-              <textarea
-                value={state.settings.customInstructions}
-                onChange={(event) =>
-                  updateSettings({ customInstructions: event.target.value })
-                }
-                rows={4}
-                placeholder="Optional: set your own assistant rules or tone here."
-                className="mt-2 max-h-40 min-h-24 w-full resize-y bg-transparent text-sm leading-6 text-white placeholder:text-white/28 focus:outline-none"
-              />
             </div>
 
             <input
@@ -1499,6 +1563,100 @@ export function ChatApp() {
           }
           onClose={() => setMobileMemoryOpen(false)}
         />
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setSettingsOpen(false)}
+        className={`fixed inset-0 z-40 bg-black/65 transition ${
+          settingsOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        }`}
+        aria-label="Close settings overlay"
+      />
+
+      <div
+        className={`fixed inset-y-0 right-0 z-50 w-screen max-w-none transition-transform duration-200 sm:inset-y-3 sm:right-3 sm:w-[88vw] sm:max-w-[420px] ${
+          settingsOpen ? "translate-x-0" : "translate-x-[110%]"
+        }`}
+      >
+        <aside className="glass-panel flex h-full flex-col overflow-hidden rounded-none sm:rounded-[32px]">
+          <div className="flex items-start justify-between gap-4 border-b border-white/8 p-4 sm:p-5">
+            <div>
+              <div className="text-lg font-semibold tracking-tight text-white">Settings</div>
+              <p className="mt-1 text-sm text-white/42">
+                Local-only controls for this browser on this device.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(false)}
+              className="glass-control rounded-full p-2 text-white/60"
+              aria-label="Close settings"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="chat-scroll flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+            <div className="glass-control rounded-[20px] p-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-white/36">
+                Custom instructions
+              </div>
+              <textarea
+                value={state.settings.customInstructions}
+                onChange={(event) =>
+                  updateSettings({ customInstructions: event.target.value })
+                }
+                rows={6}
+                placeholder="Optional: set your own assistant rules or tone here."
+                className="mt-3 min-h-28 w-full resize-y bg-transparent text-sm leading-6 text-white placeholder:text-white/28 focus:outline-none"
+              />
+            </div>
+
+            <div className="glass-control rounded-[20px] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium text-white">Auto-detect image prompts</div>
+                  <div className="mt-1 text-xs text-white/38">
+                    Turn text prompts like "make an image" into image generation automatically.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateSettings({ autoDetectImages: !state.settings.autoDetectImages })
+                  }
+                  className={`glass-control rounded-full px-3 py-2 text-sm ${
+                    state.settings.autoDetectImages
+                      ? "glass-control--active text-white"
+                      : "text-white/72"
+                  }`}
+                >
+                  {state.settings.autoDetectImages ? "On" : "Off"}
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={handleExportBackup}
+                className="glass-control inline-flex items-center justify-center gap-2 rounded-[18px] px-4 py-3 text-sm text-white/78"
+              >
+                <Download className="h-4 w-4" />
+                Backup
+              </button>
+              <button
+                type="button"
+                onClick={() => restoreInputRef.current?.click()}
+                className="glass-control inline-flex items-center justify-center gap-2 rounded-[18px] px-4 py-3 text-sm text-white/78"
+              >
+                <Upload className="h-4 w-4" />
+                Restore
+              </button>
+            </div>
+          </div>
+        </aside>
       </div>
 
       {editorDialog ? (
