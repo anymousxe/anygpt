@@ -2,10 +2,11 @@ import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
 import { isAuthorizedRequest } from "@/lib/access";
-import { buildAssistantInstructions, MEMORY_TOOL } from "@/lib/prompt";
+import { buildAssistantInstructions, GENERATE_IMAGE_TOOL, MEMORY_TOOL } from "@/lib/prompt";
 import {
   MEMORY_CATEGORIES,
   type ChatRequestPayload,
+  type GeneratedImage,
   type MemoryEntry,
   type MemoryWrite,
 } from "@/lib/types";
@@ -70,6 +71,51 @@ function isSaveMemoryCall(
     typeof record.arguments === "string" &&
     typeof record.call_id === "string"
   );
+}
+
+function isGenerateImageCall(
+  item: unknown
+): item is {
+  type: "function_call";
+  name: "generate_image";
+  arguments: string;
+  call_id: string;
+} {
+  if (typeof item !== "object" || item === null) {
+    return false;
+  }
+
+  const record = item as Record<string, unknown>;
+
+  return (
+    record.type === "function_call" &&
+    record.name === "generate_image" &&
+    typeof record.arguments === "string" &&
+    typeof record.call_id === "string"
+  );
+}
+
+async function generateImage(client: OpenAI, prompt: string): Promise<GeneratedImage> {
+  const response = await client.images.generate({
+    model: process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-1.5",
+    prompt,
+    background: "auto",
+    output_format: "png",
+    quality: "high",
+    size: "auto",
+  });
+
+  const image = response.data?.[0];
+
+  if (!image?.b64_json) {
+    throw new Error("No image data returned.");
+  }
+
+  return {
+    dataUrl: `data:image/png;base64,${image.b64_json}`,
+    prompt,
+    revisedPrompt: image.revised_prompt ?? undefined,
+  };
 }
 
 function serializeMessages(messages: ChatRequestPayload["messages"]) {
@@ -212,6 +258,7 @@ export async function POST(request: Request) {
 
         try {
           let assistantText = "";
+          let generatedImage: GeneratedImage | undefined;
           let input: any = serializeMessages(messages);
           let previousResponseId: string | undefined;
 
@@ -231,7 +278,7 @@ export async function POST(request: Request) {
               },
               service_tier: "default",
               store: true,
-              tools: [MEMORY_TOOL],
+              tools: [MEMORY_TOOL, GENERATE_IMAGE_TOOL],
               ...(previousResponseId
                 ? { previous_response_id: previousResponseId }
                 : {}),
@@ -245,45 +292,90 @@ export async function POST(request: Request) {
             }
 
             const response = await responseStream.finalResponse();
-            const toolCalls = (response.output ?? []).filter(isSaveMemoryCall);
+            const toolCalls = (response.output ?? []).filter(
+              (item) => isSaveMemoryCall(item) || isGenerateImageCall(item)
+            );
 
             if (toolCalls.length === 0) {
               writeEvent({
                 type: "done",
                 text: assistantText.trim() || "I’m here.",
                 memoryWrites: dedupeMemoryWrites(memoryWrites),
+                ...(generatedImage ? { generatedImage } : {}),
               });
               return;
             }
 
-            input = toolCalls.map((call) => {
-              const memoryCall = call as {
-                call_id: string;
-                arguments: string;
-              };
-              let parsed: MemoryWrite | null = null;
-              const argumentsText = memoryCall.arguments;
+            input = (await Promise.all(
+              toolCalls.map(async (call) => {
+                if (isSaveMemoryCall(call)) {
+                  const memoryCall = call as {
+                    call_id: string;
+                    arguments: string;
+                  };
+                  let parsed: MemoryWrite | null = null;
 
-              try {
-                parsed = normalizeMemoryWrite(JSON.parse(argumentsText));
-              } catch {
-                parsed = null;
-              }
+                  try {
+                    parsed = normalizeMemoryWrite(JSON.parse(memoryCall.arguments));
+                  } catch {
+                    parsed = null;
+                  }
 
-              if (parsed) {
-                memoryWrites.push(parsed);
-              }
+                  if (parsed) {
+                    memoryWrites.push(parsed);
+                  }
 
-              return {
-                type: "function_call_output" as const,
-                call_id: memoryCall.call_id,
-                output: JSON.stringify(
-                  parsed
-                    ? { saved: true, label: parsed.label }
-                    : { saved: false, reason: "Invalid arguments" }
-                ),
-              };
-            }) as any;
+                  return {
+                    type: "function_call_output" as const,
+                    call_id: memoryCall.call_id,
+                    output: JSON.stringify(
+                      parsed
+                        ? { saved: true, label: parsed.label }
+                        : { saved: false, reason: "Invalid arguments" }
+                    ),
+                  };
+                }
+
+                const imageCall = call as {
+                  call_id: string;
+                  arguments: string;
+                };
+
+                try {
+                  const parsed = JSON.parse(imageCall.arguments) as { prompt?: string };
+                  const prompt = typeof parsed.prompt === "string" ? parsed.prompt.trim() : "";
+
+                  if (!prompt) {
+                    return {
+                      type: "function_call_output" as const,
+                      call_id: imageCall.call_id,
+                      output: JSON.stringify({ generated: false, reason: "Missing prompt" }),
+                    };
+                  }
+
+                  generatedImage = await generateImage(client, prompt);
+
+                  return {
+                    type: "function_call_output" as const,
+                    call_id: imageCall.call_id,
+                    output: JSON.stringify({
+                      generated: true,
+                      prompt: generatedImage.prompt,
+                      revisedPrompt: generatedImage.revisedPrompt ?? null,
+                    }),
+                  };
+                } catch (error) {
+                  return {
+                    type: "function_call_output" as const,
+                    call_id: imageCall.call_id,
+                    output: JSON.stringify({
+                      generated: false,
+                      reason: error instanceof Error ? error.message : "Image generation failed",
+                    }),
+                  };
+                }
+              })
+            )) as any;
             previousResponseId = response.id;
           }
 
@@ -291,6 +383,7 @@ export async function POST(request: Request) {
             type: "done",
             text: assistantText.trim() || "I’m here.",
             memoryWrites: dedupeMemoryWrites(memoryWrites),
+            ...(generatedImage ? { generatedImage } : {}),
           });
         } catch (error) {
           writeEvent({

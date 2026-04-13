@@ -103,6 +103,7 @@ export type ChatStreamEvent =
       type: "done";
       text: string;
       memoryWrites: MemoryWrite[];
+      generatedImage?: GeneratedImage;
     }
   | {
       type: "error";

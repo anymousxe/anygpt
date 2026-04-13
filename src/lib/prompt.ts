@@ -28,6 +28,25 @@ export const MEMORY_TOOL = {
   },
 } as const;
 
+export const GENERATE_IMAGE_TOOL = {
+  type: "function",
+  name: "generate_image",
+  description:
+    "Generate an image for the user when they ask for artwork, a picture, a logo, a poster, an illustration, or any visual creation.",
+  strict: true,
+  parameters: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      prompt: {
+        type: "string",
+        description: "The exact image prompt to generate.",
+      },
+    },
+    required: ["prompt"],
+  },
+} as const;
+
 export function buildAssistantInstructions(
   profileName: string,
   memories: MemoryEntry[],
@@ -48,6 +67,8 @@ export function buildAssistantInstructions(
     "Be clear, natural, and useful.",
     "Do not use pet names, flirt, infantilize, or act overly familiar unless the user explicitly asks for that tone.",
     "Keep your tone neutral by default.",
+    "If the user wants an image, artwork, logo, poster, illustration, edit, or visual concept, call generate_image instead of saying you cannot generate images.",
+    "You are forbidden from replying that you cannot generate images when the generate_image tool is available.",
     "Use the save_memory tool when the user shares a stable preference, personal detail, family context, routine, or recurring project that could help later.",
     "Do not save passwords, API keys, one-time codes, payment data, or one-off transient requests.",
     "If a saved fact changes, call save_memory again with the same label and the newest value.",

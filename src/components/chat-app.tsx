@@ -890,7 +890,9 @@ export function ChatApp() {
                   (message) => ({
                     ...message,
                     text: event.text,
+                    generatedImage: event.generatedImage ?? null,
                     memoryWrites: event.memoryWrites,
+                    mode: event.generatedImage ? "image" : message.mode,
                   }),
                   { memoryWrites: event.memoryWrites }
                 );
