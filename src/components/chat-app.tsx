@@ -751,9 +751,10 @@ export function ChatApp() {
     const createdAt = nowIso();
     const explicitImageMode = composerModeRef.current === "image";
     const shouldGenerateImage =
-      queuedAttachments.length === 0 &&
-      (explicitImageMode ||
-        (state.settings.autoDetectImages && detectImageIntent(text)));
+      explicitImageMode ||
+      (queuedAttachments.length === 0 &&
+        state.settings.autoDetectImages &&
+        detectImageIntent(text));
     const userMessage: ChatMessage = {
       id: makeId("message"),
       role: "user",
@@ -792,6 +793,7 @@ export function ChatApp() {
           body: JSON.stringify({
             prompt: text,
             profileName: activeProfile.name,
+            attachments: queuedAttachments,
           }),
         });
         const payload = (await response.json().catch(() => null)) as
@@ -811,8 +813,8 @@ export function ChatApp() {
           id: makeId("message"),
           role: "assistant",
           text: imageData.revisedPrompt
-            ? `Generated with GPT Image 1.5.\n\n${imageData.revisedPrompt}`
-            : "Generated with GPT Image 1.5.",
+            ? `Generated with GPT Image 1.5${queuedAttachments.length > 0 ? " from your reference image" : ""}.\n\n${imageData.revisedPrompt}`
+            : `Generated with GPT Image 1.5${queuedAttachments.length > 0 ? " from your reference image" : ""}.`,
           createdAt: nowIso(),
           attachments: [],
           generatedImage: {

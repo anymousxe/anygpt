@@ -113,6 +113,7 @@ export type ChatStreamEvent =
 export type ImageRequestPayload = {
   prompt: string;
   profileName: string;
+  attachments?: UploadAttachment[];
 };
 
 export type ImageResponsePayload = {
