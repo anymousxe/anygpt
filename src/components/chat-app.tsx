@@ -34,16 +34,17 @@ import {
 import {
   APP_NAME,
   BACKUP_FILE_PREFIX,
-  STORAGE_KEY,
   compressImageFile,
   compressImageToDataUrl,
   createInitialState,
   createThread,
   createTitleFromText,
   getProfileSlug,
+  loadPersistedStateFromBrowser,
   makeId,
   normalizePersistedState,
   nowIso,
+  savePersistedStateToBrowser,
   upsertMemories,
 } from "@/lib/app-state";
 import { detectImageIntent } from "@/lib/image-intent";
@@ -143,13 +144,23 @@ export function ChatApp() {
   const imageModeRef = useRef(false);
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
+    let cancelled = false;
 
-      setState(raw ? normalizePersistedState(JSON.parse(raw)) : createInitialState());
-    } catch {
-      setState(createInitialState());
-    }
+    void loadPersistedStateFromBrowser()
+      .then((loaded) => {
+        if (!cancelled) {
+          setState(loaded ?? createInitialState());
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setState(createInitialState());
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -157,36 +168,20 @@ export function ChatApp() {
       return;
     }
 
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      try {
-        const stripped = {
-          ...state,
-          profiles: state.profiles.map((profile) => ({
-            ...profile,
-            chats: profile.chats.map((chat) => ({
-              ...chat,
-              messages: chat.messages.map((message) => ({
-                ...message,
-                attachments: [],
-                generatedImage: null,
-              })),
-            })),
-          })),
-        };
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stripped));
+    let cancelled = false;
+
+    void savePersistedStateToBrowser(state).then((result) => {
+      if (!result.fullStateSaved && !cancelled) {
         setNotice({
           kind: "error",
-          text: "Storage full - saved without images. Export a backup and trim chats.",
-        });
-      } catch {
-        setNotice({
-          kind: "error",
-          text: "Browser storage is full. Export a backup and trim a few chats.",
+          text: "Local browser storage failed. Your latest image history may not persist.",
         });
       }
-    }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [state]);
 
   useEffect(() => {
@@ -989,8 +984,8 @@ export function ChatApp() {
   }
 
   return (
-    <div className="relative h-[100dvh] overflow-hidden p-2 sm:p-3">
-      <div className="flex h-full w-full items-stretch gap-3">
+    <div className="relative h-[100dvh] overflow-hidden p-0 sm:p-3">
+      <div className="flex h-full w-full items-stretch gap-0 sm:gap-3">
         <button
           type="button"
           onClick={() => setSidebarOpen(false)}
@@ -1001,11 +996,11 @@ export function ChatApp() {
         />
 
         <aside
-          className={`fixed inset-y-3 left-3 z-40 w-[88vw] max-w-[360px] transition-transform duration-200 xl:static xl:inset-auto xl:w-[320px] xl:shrink-0 xl:translate-x-0 ${
+          className={`fixed inset-y-0 left-0 z-40 w-screen max-w-none transition-transform duration-200 sm:inset-y-3 sm:left-3 sm:w-[88vw] sm:max-w-[360px] xl:static xl:inset-auto xl:w-[320px] xl:shrink-0 xl:translate-x-0 ${
             sidebarOpen ? "translate-x-0" : "-translate-x-[110%]"
           }`}
         >
-          <div className="glass-panel flex h-full flex-col overflow-hidden rounded-[28px] p-2.5">
+          <div className="glass-panel flex h-full flex-col overflow-hidden rounded-none p-2.5 sm:rounded-[28px]">
             <div className="rounded-[24px] border border-white/8 bg-white/[0.025] p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
@@ -1121,7 +1116,7 @@ export function ChatApp() {
         </aside>
 
         <main className="flex min-w-0 flex-1">
-          <section className="chat-window relative flex h-full min-w-0 flex-1 flex-col overflow-hidden">
+          <section className="chat-window relative flex h-full min-w-0 flex-1 flex-col overflow-hidden rounded-none border-x-0 border-y-0 sm:rounded-[28px] sm:border-x sm:border-y">
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
@@ -1164,7 +1159,7 @@ export function ChatApp() {
                   </div>
                 </div>
               ) : (
-                <div className="chat-scroll flex-1 overflow-y-auto px-3 pb-3 pt-14 sm:px-5 sm:pb-4 sm:pt-5">
+                <div className="chat-scroll flex-1 overflow-y-auto px-2.5 pb-2.5 pt-14 sm:px-5 sm:pb-4 sm:pt-5">
                   <div className="mx-auto flex w-full max-w-3xl flex-col gap-2.5">
                     {activeChat.messages.map((message) => (
                       <MessageCard
@@ -1181,7 +1176,7 @@ export function ChatApp() {
                 </div>
               )}
 
-              <div className="shrink-0 px-2 pb-2 sm:px-3 sm:pb-3">
+              <div className="shrink-0 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] sm:px-3 sm:pb-3">
                 <div className="glass-panel-soft rounded-[24px] px-3 py-3 sm:px-4">
                   <div className="mb-2 flex flex-wrap items-center gap-2 sm:mb-3">
                     <button
@@ -1208,7 +1203,7 @@ export function ChatApp() {
                       Memories
                     </button>
 
-                    <label className="glass-select relative min-w-[170px] flex-1 sm:flex-none">
+                    <label className="glass-select relative min-w-[140px] flex-1 sm:min-w-[170px] sm:flex-none">
                       <FolderClosed className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
                       <select
                         value={activeChat.folderId ?? ""}
@@ -1284,7 +1279,7 @@ export function ChatApp() {
                       <button
                         type="button"
                         onClick={() => uploadInputRef.current?.click()}
-                        className="glass-control inline-flex h-10 shrink-0 items-center gap-2 rounded-[14px] px-2.5 text-sm text-white/78 sm:h-11 sm:rounded-[16px] sm:px-3"
+                        className="glass-control inline-flex h-10 shrink-0 items-center gap-2 rounded-[14px] px-2.5 text-sm text-white/78 max-[380px]:px-2 sm:h-11 sm:rounded-[16px] sm:px-3"
                       >
                         <ImagePlus className="h-4 w-4" />
                         <span className="hidden sm:inline">Image</span>
@@ -1325,7 +1320,7 @@ export function ChatApp() {
                       <button
                         type="submit"
                         disabled={!canSend}
-                        className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[14px] bg-white px-3 text-sm font-medium text-black transition hover:scale-[1.01] hover:shadow-[0_18px_60px_rgba(255,255,255,0.16)] disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 sm:rounded-[16px] sm:px-4"
+                        className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[14px] bg-white px-3 text-sm font-medium text-black transition hover:scale-[1.01] hover:shadow-[0_18px_60px_rgba(255,255,255,0.16)] disabled:cursor-not-allowed disabled:opacity-50 max-[380px]:px-2.5 sm:h-11 sm:rounded-[16px] sm:px-4"
                       >
                         <span>{willGenerateImage ? "Create" : "Send"}</span>
                         <SendHorizontal className="h-4 w-4" />
@@ -1378,7 +1373,7 @@ export function ChatApp() {
       />
 
       <div
-        className={`fixed inset-y-3 right-3 z-50 w-[88vw] max-w-[360px] transition-transform duration-200 ${
+        className={`fixed inset-y-0 right-0 z-50 w-screen max-w-none transition-transform duration-200 sm:inset-y-3 sm:right-3 sm:w-[88vw] sm:max-w-[360px] ${
           mobileMemoryOpen ? "translate-x-0" : "translate-x-[110%]"
         }`}
       >
@@ -1467,9 +1462,9 @@ export function ChatApp() {
 
 function LoadingShell() {
   return (
-    <div className="flex h-[100dvh] w-full items-center gap-3 p-2 sm:p-3">
+    <div className="flex h-[100dvh] w-full items-center gap-0 p-0 sm:gap-3 sm:p-3">
       <div className="glass-panel hidden h-full w-[320px] rounded-[28px] xl:block" />
-      <div className="chat-window h-full flex-1" />
+      <div className="chat-window h-full flex-1 rounded-none border-x-0 border-y-0 sm:rounded-[28px] sm:border-x sm:border-y" />
     </div>
   );
 }

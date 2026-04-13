@@ -16,6 +16,9 @@ export const APP_NAME = "Halo Chat";
 export const APP_VERSION = 1;
 export const STORAGE_KEY = "halo-chat-state:v1";
 export const BACKUP_FILE_PREFIX = "halo-chat-backup";
+export const LOCAL_DB_NAME = "halo-chat-local";
+export const LOCAL_DB_STORE = "app";
+export const LOCAL_DB_KEY = "persisted-state";
 export const MAX_IMAGE_DIM = 768;
 export const MAX_IMAGE_QUALITY = 0.58;
 export const PROFILE_PRESETS = [
@@ -439,6 +442,126 @@ export function normalizePersistedState(value: unknown): PersistedState {
           customInstructions: "",
         },
   };
+}
+
+function stripMediaForMirror(state: PersistedState): PersistedState {
+  return {
+    ...state,
+    profiles: state.profiles.map((profile) => ({
+      ...profile,
+      chats: profile.chats.map((chat) => ({
+        ...chat,
+        messages: chat.messages.map((message) => ({
+          ...message,
+          attachments: [],
+          generatedImage: null,
+        })),
+      })),
+    })),
+  };
+}
+
+function openLocalDatabase() {
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    const request = window.indexedDB.open(LOCAL_DB_NAME, 1);
+
+    request.onupgradeneeded = () => {
+      const database = request.result;
+
+      if (!database.objectStoreNames.contains(LOCAL_DB_STORE)) {
+        database.createObjectStore(LOCAL_DB_STORE);
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("Could not open local database."));
+  });
+}
+
+async function readStateFromIndexedDb() {
+  const database = await openLocalDatabase();
+
+  return new Promise<unknown>((resolve, reject) => {
+    const transaction = database.transaction(LOCAL_DB_STORE, "readonly");
+    const store = transaction.objectStore(LOCAL_DB_STORE);
+    const request = store.get(LOCAL_DB_KEY);
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("Could not read local state."));
+    transaction.oncomplete = () => database.close();
+    transaction.onerror = () => database.close();
+    transaction.onabort = () => database.close();
+  });
+}
+
+async function writeStateToIndexedDb(state: PersistedState) {
+  const database = await openLocalDatabase();
+
+  return new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction(LOCAL_DB_STORE, "readwrite");
+    const store = transaction.objectStore(LOCAL_DB_STORE);
+
+    store.put(state, LOCAL_DB_KEY);
+
+    transaction.oncomplete = () => {
+      database.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      database.close();
+      reject(transaction.error ?? new Error("Could not write local state."));
+    };
+    transaction.onabort = () => {
+      database.close();
+      reject(transaction.error ?? new Error("Could not write local state."));
+    };
+  });
+}
+
+export async function loadPersistedStateFromBrowser() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const indexedDbState = await readStateFromIndexedDb();
+
+    if (indexedDbState) {
+      return normalizePersistedState(indexedDbState);
+    }
+  } catch {
+    // Fall through to localStorage backup.
+  }
+
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return raw ? normalizePersistedState(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function savePersistedStateToBrowser(state: PersistedState) {
+  if (typeof window === "undefined") {
+    return { fullStateSaved: false };
+  }
+
+  let fullStateSaved = false;
+
+  try {
+    await writeStateToIndexedDb(state);
+    fullStateSaved = true;
+  } catch {
+    fullStateSaved = false;
+  }
+
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stripMediaForMirror(state)));
+  } catch {
+    // Ignore localStorage mirror failures when IndexedDB already has the full data.
+  }
+
+  return { fullStateSaved };
 }
 
 export function createTitleFromText(input: string) {
