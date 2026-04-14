@@ -524,6 +524,23 @@ export async function loadPersistedStateFromBrowser() {
   }
 
   try {
+    const response = await fetch("/api/state", {
+      method: "GET",
+      cache: "no-store",
+    });
+
+    if (response.ok) {
+      const payload = (await response.json()) as { state?: unknown };
+
+      if (payload.state) {
+        return normalizePersistedState(payload.state);
+      }
+    }
+  } catch {
+    // Fall through to browser-local backup.
+  }
+
+  try {
     const indexedDbState = await readStateFromIndexedDb();
 
     if (indexedDbState) {
@@ -549,10 +566,24 @@ export async function savePersistedStateToBrowser(state: PersistedState) {
   let fullStateSaved = false;
 
   try {
+    const response = await fetch("/api/state", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ state }),
+    });
+
+    fullStateSaved = response.ok;
+  } catch {
+    fullStateSaved = false;
+  }
+
+  try {
     await writeStateToIndexedDb(state);
     fullStateSaved = true;
   } catch {
-    fullStateSaved = false;
+    fullStateSaved = fullStateSaved || false;
   }
 
   try {

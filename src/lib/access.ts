@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "crypto";
 
 export const ACCESS_COOKIE_NAME = "halo_access";
+export const SPACE_COOKIE_NAME = "halo_space";
 
 function safeCompare(left: string, right: string) {
   const leftBuffer = Buffer.from(left);
@@ -73,4 +74,9 @@ export function isAuthorizedRequest(request: Request) {
   return hasValidAccessCookieValue(
     readCookieValue(request.headers.get("cookie"), ACCESS_COOKIE_NAME)
   );
+}
+
+export function readSpaceCookie(request: Request) {
+  const value = readCookieValue(request.headers.get("cookie"), SPACE_COOKIE_NAME);
+  return value === "aiden" ? "aiden" : "mom";
 }

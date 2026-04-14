@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { normalizeProfileSlug } from "@/lib/app-state";
 import {
   ACCESS_COOKIE_NAME,
+  SPACE_COOKIE_NAME,
   createAccessCookieValue,
   isValidSiteAccessKey,
 } from "@/lib/access";
@@ -30,6 +31,16 @@ export async function POST(request: Request) {
   response.cookies.set({
     name: ACCESS_COOKIE_NAME,
     value: createAccessCookieValue(expectedKey),
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30,
+  });
+
+  response.cookies.set({
+    name: SPACE_COOKIE_NAME,
+    value: profile,
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
