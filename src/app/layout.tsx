@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { APP_NAME } from "@/lib/app-state";
@@ -19,6 +19,17 @@ export const metadata: Metadata = {
   title: APP_NAME,
   description:
     "Local-first AI chat with folders, memory tools, image mode, and backup-ready storage.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
+  themeColor: "#050505",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
