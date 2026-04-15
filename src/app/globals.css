@@ -210,6 +210,48 @@ button {
   animation-delay: 0.28s;
 }
 
+.image-generation-card {
+  position: relative;
+  overflow: hidden;
+  height: 220px;
+  width: min(100%, 320px);
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.12), transparent 30%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    rgba(255, 255, 255, 0.025);
+}
+
+.image-generation-blob {
+  position: absolute;
+  inset: 10% 12%;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.08) 34%, transparent 58%),
+    radial-gradient(circle at 70% 62%, rgba(255, 255, 255, 0.18), transparent 32%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.03));
+  filter: blur(18px);
+  animation: image-blob-float 4.2s ease-in-out infinite alternate;
+}
+
+@keyframes image-blob-float {
+  0% {
+    transform: translate3d(-8px, -6px, 0) scale(0.98) rotate(-3deg);
+    border-radius: 28px 36px 32px 30px;
+  }
+
+  50% {
+    transform: translate3d(8px, 6px, 0) scale(1.03) rotate(2deg);
+    border-radius: 40px 28px 36px 24px;
+  }
+
+  100% {
+    transform: translate3d(-4px, 10px, 0) scale(1) rotate(-1deg);
+    border-radius: 26px 40px 30px 38px;
+  }
+}
+
 @keyframes thinking-fade {
   0%,
   80%,

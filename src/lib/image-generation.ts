@@ -145,22 +145,25 @@ export async function generateImageWithFallback(
   prompt: string,
   attachments: UploadAttachment[] = []
 ): Promise<GeneratedImage> {
-  let effectivePrompt = shouldPreSanitizePrompt(prompt)
-    ? rewritePromptForSafety(prompt, attachments.length > 0)
-    : prompt;
+  const shouldPreRewrite = shouldPreSanitizePrompt(prompt);
+  let effectivePrompt = prompt;
 
-  try {
-    const modelRewrite = await rewritePromptWithModel(
-      client,
-      effectivePrompt,
-      attachments.length > 0
-    );
+  if (shouldPreRewrite) {
+    effectivePrompt = rewritePromptForSafety(prompt, attachments.length > 0);
 
-    if (modelRewrite) {
-      effectivePrompt = modelRewrite;
+    try {
+      const modelRewrite = await rewritePromptWithModel(
+        client,
+        effectivePrompt,
+        attachments.length > 0
+      );
+
+      if (modelRewrite) {
+        effectivePrompt = modelRewrite;
+      }
+    } catch {
+      // Keep the deterministic local rewrite if the cheap model call fails.
     }
-  } catch {
-    // Keep the deterministic local rewrite if the cheap model call fails.
   }
 
   try {
@@ -181,7 +184,22 @@ export async function generateImageWithFallback(
       throw error;
     }
 
-    const rewrittenPrompt = rewritePromptForSafety(prompt, attachments.length > 0);
+    let rewrittenPrompt = rewritePromptForSafety(prompt, attachments.length > 0);
+
+    try {
+      const modelRewrite = await rewritePromptWithModel(
+        client,
+        rewrittenPrompt,
+        attachments.length > 0
+      );
+
+      if (modelRewrite) {
+        rewrittenPrompt = modelRewrite;
+      }
+    } catch {
+      // Keep deterministic rewrite.
+    }
+
     const response = await generateRawImage(client, rewrittenPrompt, attachments);
     const image = response.data?.[0];
 

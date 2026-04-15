@@ -389,8 +389,13 @@ export function ChatApp() {
     !isMutating &&
     (composer.trim().length > 0 || queuedAttachments.length > 0);
   const activeTailMessage = activeChat?.messages.at(-1) ?? null;
+  const showImageGenerating =
+    isSending &&
+    activeTailMessage?.role === "user" &&
+    activeTailMessage.mode === "image";
   const showThinking =
     isSending &&
+    !showImageGenerating &&
     !(activeTailMessage?.role === "assistant" && (activeTailMessage.text || activeTailMessage.error));
 
   function updateState(
@@ -1296,6 +1301,7 @@ export function ChatApp() {
                       />
                     ))}
 
+                    {showImageGenerating ? <ImageGeneratingBubble /> : null}
                     {showThinking ? <TypingBubble /> : null}
 
                     <div ref={endRef} />
@@ -1787,6 +1793,22 @@ function TypingBubble() {
           <span className="thinking-dot" />
           <span className="thinking-dot" />
           <span className="thinking-dot" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ImageGeneratingBubble() {
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[min(100%,360px)] rounded-[26px] border border-white/8 bg-white/[0.04] p-3 shadow-[0_18px_42px_rgba(0,0,0,0.18)] backdrop-blur-2xl">
+        <div className="image-generation-card">
+          <div className="image-generation-blob" />
+        </div>
+        <div className="mt-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-white/42">
+          <Sparkles className="h-3.5 w-3.5 animate-pulse text-white/54" />
+          <span>Generating image</span>
         </div>
       </div>
     </div>
