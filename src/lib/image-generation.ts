@@ -6,6 +6,10 @@ function getImageModel() {
   return process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-1.5";
 }
 
+function getRewriteModel() {
+  return process.env.OPENAI_IMAGE_REWRITE_MODEL ?? "gpt-5.4-nano";
+}
+
 function dataUrlToUploadable(dataUrl: string, index: number) {
   const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
 
@@ -71,15 +75,15 @@ async function rewritePromptWithModel(
   hasReferences: boolean
 ) {
   const response = await client.responses.create({
-    model: process.env.OPENAI_CHAT_MODEL ?? "gpt-5.4-nano",
+    model: getRewriteModel(),
     reasoning: { effort: "none" },
     store: false,
-    max_output_tokens: 220,
+    max_output_tokens: 260,
     input: [
       {
         role: "system",
         content:
-          "Rewrite image prompts so they keep the visual intent but remove named artists, named public figures, copyrighted character names, franchise names, 'style of' phrasing, and words likely to trigger image safety filters. Convert them into generic descriptive traits. Return one clean prompt only.",
+          "You rewrite image prompts for safe image generation. Keep the user's intent, composition, mood, colors, powers, and subject. Remove copyrighted character names, franchise names, public-figure references, exact artist-style imitation, and wording likely to trigger image safety filters. Convert them into generic descriptive traits. If the prompt is already safe, lightly polish it and keep it close. Return one clean prompt only with no quotes, no explanation, no bullets.",
       },
       {
         role: "user",
@@ -88,7 +92,7 @@ async function rewritePromptWithModel(
             type: "input_text",
             text: `Rewrite this for safe original image generation. ${
               hasReferences
-                ? "The uploaded reference images should remain the subject with high fidelity."
+                ? "The uploaded reference images should remain the subject with high fidelity, and named-IP wording should be converted into generic powers/traits without changing the person in the reference image."
                 : "No reference image is provided."
             } Prompt: ${prompt}`,
           },
@@ -141,24 +145,22 @@ export async function generateImageWithFallback(
   prompt: string,
   attachments: UploadAttachment[] = []
 ): Promise<GeneratedImage> {
-  let effectivePrompt = prompt;
+  let effectivePrompt = shouldPreSanitizePrompt(prompt)
+    ? rewritePromptForSafety(prompt, attachments.length > 0)
+    : prompt;
 
-  if (shouldPreSanitizePrompt(prompt)) {
-    effectivePrompt = rewritePromptForSafety(prompt, attachments.length > 0);
+  try {
+    const modelRewrite = await rewritePromptWithModel(
+      client,
+      effectivePrompt,
+      attachments.length > 0
+    );
 
-    try {
-      const modelRewrite = await rewritePromptWithModel(
-        client,
-        prompt,
-        attachments.length > 0
-      );
-
-      if (modelRewrite) {
-        effectivePrompt = modelRewrite;
-      }
-    } catch {
-      // Keep the deterministic fallback rewrite.
+    if (modelRewrite) {
+      effectivePrompt = modelRewrite;
     }
+  } catch {
+    // Keep the deterministic local rewrite if the cheap model call fails.
   }
 
   try {
