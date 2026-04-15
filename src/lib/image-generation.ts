@@ -24,6 +24,20 @@ function dataUrlToUploadable(dataUrl: string, index: number) {
 function rewritePromptForSafety(prompt: string, hasReferences: boolean) {
   const looksLikeCoverArt = /cover|album|mixtape|poster|rapper|rap|trap|hip-hop|drill/i.test(prompt);
   const sanitizedPrompt = prompt
+    .replace(/spider-?man/gi, "an agile wall-crawling masked hero with web-like grappling abilities")
+    .replace(/batman/gi, "a dark vigilante with tactical gear and dramatic cape silhouette")
+    .replace(/superman/gi, "a powerful flying hero with iconic strength and clean heroic posture")
+    .replace(/iron man/gi, "a sleek armored tech hero with glowing high-tech details")
+    .replace(/hulk/gi, "a massive powerhouse character with intense strength and explosive energy")
+    .replace(/wolverine/gi, "a feral action hero with rugged styling and sharp claw-like weapons")
+    .replace(/deadpool/gi, "a masked antihero with red tactical gear and chaotic comic-book energy")
+    .replace(/captain america/gi, "a patriotic tactical hero with bold leadership energy and shield combat")
+    .replace(/thor/gi, "a mythic storm-powered warrior with lightning energy and a heavy hammer weapon")
+    .replace(/flash/gi, "a speed-focused hero with crackling motion trails and electric energy")
+    .replace(/goku/gi, "a spiky-haired martial arts hero with glowing energy aura and airborne action")
+    .replace(/naruto/gi, "a fast ninja hero with orange-accented styling and swirling energy effects")
+    .replace(/sukuna|gojo|itadori|megumi/gi, "an original supernatural anime fighter")
+    .replace(/marvel|dc/gi, "original comic-inspired")
     .replace(/in the style of [^,.;\n]+/gi, "")
     .replace(/style of [^,.;\n]+/gi, "")
     .replace(/like\s+[^,.;\n]+/gi, "")
@@ -46,7 +60,7 @@ function rewritePromptForSafety(prompt: string, hasReferences: boolean) {
 }
 
 function shouldPreSanitizePrompt(prompt: string) {
-  return /in the style of|style of|\blike\b|rapper|rap|trap|drill|hip-hop|cover art|album cover|mixtape|nle choppa|youngboy|nba youngboy|playboi carti|ken carson|destroy lonely/i.test(
+  return /in the style of|style of|\blike\b|rapper|rap|trap|drill|hip-hop|cover art|album cover|mixtape|nle choppa|youngboy|nba youngboy|playboi carti|ken carson|destroy lonely|spider-?man|batman|superman|iron man|hulk|wolverine|deadpool|captain america|thor|flash|goku|naruto|marvel|dc|gojo|sukuna/i.test(
     prompt
   );
 }
@@ -65,7 +79,7 @@ async function rewritePromptWithModel(
       {
         role: "system",
         content:
-          "Rewrite image prompts so they keep the visual intent but remove named artists, named public figures, 'style of' phrasing, and words likely to trigger image safety filters. Return one clean prompt only.",
+          "Rewrite image prompts so they keep the visual intent but remove named artists, named public figures, copyrighted character names, franchise names, 'style of' phrasing, and words likely to trigger image safety filters. Convert them into generic descriptive traits. Return one clean prompt only.",
       },
       {
         role: "user",
